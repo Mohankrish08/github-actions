@@ -9,3 +9,4 @@ model/
 mlflow.db
 mlartifacts/
 mlruns/
+predictions.csv
