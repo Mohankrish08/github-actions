@@ -51,13 +51,27 @@ jobs:
           name: model
           path: model/
       - run: docker build -t taxi-api .
-      - name: Start the API and try one prediction
+      # Send trips to the API and show the answers on the run's summary page
+      - name: Start the API and try some predictions
         run: |
+          set -o pipefail
           docker run -d --name api -p 8000:8000 taxi-api
           for i in $(seq 1 30); do curl -sf http://localhost:8000/health && break; sleep 2; done
-          curl -sf -X POST http://localhost:8000/predict \
-            -H "Content-Type: application/json" \
-            -d '{"PULocationID": 74, "DOLocationID": 75, "trip_distance": 2.5, "hour": 8, "weekday": 1}'
+
+          predict() {
+            minutes=$(curl -sf -X POST http://localhost:8000/predict \
+              -H "Content-Type: application/json" -d "$2" | jq -e .minutes)
+            echo "$1: $minutes minutes"
+            echo "| $1 | $minutes |" >> "$GITHUB_STEP_SUMMARY"
+          }
+
+          echo "### Predictions from the API in this Docker image" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Trip | Minutes |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          predict "2.5 miles, Tuesday 8 AM" '{"PULocationID": 74, "DOLocationID": 75, "trip_distance": 2.5, "hour": 8, "weekday": 1}'
+          predict "8 miles, Tuesday 8 AM" '{"PULocationID": 74, "DOLocationID": 75, "trip_distance": 8, "hour": 8, "weekday": 1}'
+          predict "2.5 miles, Tuesday 3 AM" '{"PULocationID": 74, "DOLocationID": 75, "trip_distance": 2.5, "hour": 3, "weekday": 1}'
+          predict "2.5 miles, Sunday 8 AM" '{"PULocationID": 74, "DOLocationID": 75, "trip_distance": 2.5, "hour": 8, "weekday": 6}'
       - name: Show the API logs if something failed
         if: failure()
         run: docker logs api
