@@ -18,7 +18,7 @@ for month in months:
     if file.exists():
         print(f"{month} already downloaded")
         continue
-    request = urllib.request.Request(f"{BASE_URL}/{file.name}", headers={"User-Agent": "taxi-class-4"})
+    request = urllib.request.Request(f"{BASE_URL}/{file.name}", headers={"User-Agent": "taxi-class-5"})
     with urllib.request.urlopen(request, timeout=120) as response:
         content = response.read()
     file.write_bytes(content)  # written only after the whole file has arrived

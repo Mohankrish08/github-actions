@@ -1,206 +1,155 @@
-# Class 4 Teaching Guide: Every Push Gets Checked Automatically
+# Class 5 Teaching Guide: Continuous Deployment to a Live API
 
 **Time:** about 2 hours
-**Project:** the Class 3 taxi project, plus tests, a model check and a GitHub Actions workflow
+**Project:** the Class 4 taxi project, plus an automatic deploy to a Hugging Face Space
+
+How to use this guide: **instructions for you are in English**. Lines marked **🗣 Sollunga** are what to say to students, in Thanglish. Commands and expected output are in `README.md`, and the Part letters match.
 
 ## By the end of class, students can
 
-1. Write tests for data cleaning and an API
-2. Explain why ML needs a model check as well as code tests
-3. Write a GitHub Actions workflow with jobs that run in order
-4. Read a failed check, fix it, and get it green
-5. Block a pull request from merging until the checks pass
+1. Explain the difference between CI and CD
+2. Store a token safely as a GitHub secret
+3. Say when the deploy job runs and when it doesn't
+4. Call the live API from Postman and the browser
+5. Ship a new version with a push, and confirm it's live
+
+**🗣 Sollunga:** "Class 4 la GitHub check pannudhu, aana Postman la call panna mudiyala. Indha class mudiyumbodhu, unga model oru real public URL la odum. Push pannina pudhu version automatic ah live aagum."
 
 ## Before class
 
 **You**
-- [ ] Push this folder to a test repo on GitHub and watch all three jobs pass. **This workflow has not run on GitHub yet**
-- [ ] Note how long each job takes, so you can tell students what to expect
-- [ ] Try the merge-blocking ruleset (Part 7) on your test repo
+- [ ] Do the full flow once on your own repo: token, secret, variable, push, 4 green jobs
+- [ ] Note how long the `deploy` job takes (the Hugging Face build). **It has not run on Hugging Face yet**
+- [ ] Open the Space's `/health` 10 minutes before class, so it isn't asleep
+- [ ] Set up a Postman request for `/predict`
+- [ ] Optional: try the rollback (Part F) once
 
 **Students**
-- [ ] GitHub account, Git installed, and Python 3.10 or above
-- [ ] Set their Git name and email:
-  ```
-  git config --global user.name "Your Name"
-  git config --global user.email "you@example.com"
-  ```
-- [ ] Push any small repo once, so the GitHub login is already done
+- [ ] A Hugging Face account (free)
+- [ ] Postman installed, or use the browser `/docs` page
+- [ ] Their Class 4 repo, with CI green
+
+**Decision for you:** one Space per student (each needs a token), or one shared Space that only you deploy? For a first class, one shared Space is simpler: you deploy, everyone calls your URL.
 
 ## Class plan
 
-| Time | Part | Outcome |
+| Time | Part (README) | Outcome |
 |---|---|---|
-| 10 min | 1. Why automate? | Students see the problem CI solves |
-| 20 min | 2. Read and run the tests | `13 passed` on their laptop |
-| 15 min | 3. The model check | `PASSED` with error 3.32 |
-| 15 min | 4. Read the workflow | Students understand jobs, steps and `needs` |
-| 15 min | 5. Push and get green | Three green jobs on GitHub |
-| 25 min | 6. Break it on purpose | Demo A and demo B fail for different reasons |
-| 10 min | 7. Block bad merges | Red pull requests can't merge |
-| 10 min | Wrap-up | Check understanding |
+| 10 min | 0–1. CI vs CD | Students know what's new |
+| 15 min | A. Token, secret, variable | Secrets understood and set |
+| 15 min | B. Laptop check and dry run | Students see what gets shipped |
+| 20 min | C. Read the `deploy` job | `needs`, `if`, `concurrency`, secrets |
+| 15 min | D. Push and watch the deploy | 4 green jobs, Space running |
+| 25 min | E. Live inference | Postman and `/docs` calls, `422` errors |
+| 15 min | F. Ship a new version | New `model_version` appears live |
+| 5 min | Wrap-up | Check understanding |
 
 ---
 
-## Part 1: Why automate? (10 min)
+## Part 0–1: CI vs CD (10 min)
 
-**Ask:** "In Class 3, how did we stop a weak model from replacing the champion?"
+Draw the diagram from README Part 0.
 
-**Answer:** we ran `retrain.py`, and it compared the models. That only worked because we remembered to run it.
+**🗣 Sollunga:** "CI na check pannradhu. CD na, check pass aana, automatic ah ship pannradhu. GitHub Actions gatekeeper maari, nalla model ah mattum ulla vidum. Hugging Face server maari, eppovum odum, users ku answer pannum."
 
-**Say:** "On a team, many people push code every day. Nobody remembers every check. CI runs them for us, every time, on a clean machine."
+**Ask:** "Class 4 la Postman la yen call panna mudiyala?"
+**🗣 Answer:** "GitHub Actions machine job mudinjadhum azhinjidum. Server illa. Adhunaala dhaan deploy venum."
 
-**Key terms**
+## Part A: Token, secret, variable (15 min)
 
-| Term | Simple meaning |
+Walk through README Part A. Spend time on **why** secrets matter.
+
+**🗣 Sollunga:** "Token na unga account oda password maari. Code la pottaa, GitHub la yaar paathaalum unga account la upload pannalam. Adhunaala GitHub **secret** la vekkanum. Save pannina apram GitHub kooda thirumba kaattaadhu. Logs la `***` nu dhaan varum."
+
+**Ask:** "Space name ah yen secret la vekkala, variable la vechom?"
+**🗣 Answer:** "Space name rahasiyam illa. Ellarum URL la paakkalaam. Token mattum dhaan rahasiyam."
+
+⚠️ Tell students never to paste their token in chat or screenshots, including yours.
+
+## Part B: Laptop check and dry run (15 min)
+
+Run `pytest -v`, `check_model.py`, then `deploy_space.py --dry-run`.
+
+**🗣 Sollunga:** "`--dry-run` upload pannaadhu. Hugging Face ku enna files pogum nu mattum kaattum. Dockerfile, code, model, matrum oru README. Andha README top la `sdk: docker`, `app_port: 8000` irukku. Adhu Hugging Face ku 'Docker vechu build pannu, port 8000 la API odum' nu sollum."
+
+**Point out the Dockerfile change:** the app now runs as user 1000, not root.
+
+**🗣 Sollunga:** "Hugging Face app ah user 1000 ah dhaan run pannum. Naama CI la um adhe maari run pannrom. Apo CI la pass aana, Hugging Face la um work aagum nu nambikkai."
+
+## Part C: Read the `deploy` job (20 min)
+
+Use the table in README Part C.
+
+| Line | 🗣 Sollunga |
 |---|---|
-| CI (continuous integration) | Automatic checks on every push |
-| Workflow | A YAML file in `.github/workflows/` that says what to run |
-| Job | A group of steps that runs on a fresh machine |
-| Step | One command or one ready-made action |
-| Pull request (PR) | A request to merge a branch into `main`, where the checks run |
+| `needs: docker` | "Moonu checks um pass aana dhaan deploy." |
+| `if: ... refs/heads/main` | "`main` ku push panna mattum. Pull request la deploy aagaadhu. Review aagaadha code live ku pogakoodadhu." |
+| `concurrency: deploy` | "Rendu push vegama vandhaalum, orey time la oru deploy dhaan. Illana rendu um mothikkum." |
+| `download-artifact` | "Check pass aana adhe model dhaan live ku pogum. Pudhusa train pannala." |
+| `secrets.HF_TOKEN` | "Token secret la irundhu varudhu, code la illa." |
 
-## Part 2: Read and run the tests (20 min)
+Then walk through the 8 steps of `deploy_space.py`.
 
-```
-pip install ".[test]"
-pytest -v
-```
+**Ask:** "Upload aana odane 'deployed' nu sollalaama?"
+**🗣 Answer:** "Illa. Upload aanaalum Hugging Face la build fail aagalaam. Live URL pudhu version sollura varaikkum wait panni, oru prediction test pannina apram dhaan 'live' nu sollanum. Adhaan script pannudhu."
 
-Expected: `13 passed`.
+## Part D: Push and watch the deploy (15 min)
 
-**Walk through `tests/test_data.py`:** each test writes a tiny trip file, loads it with `load_month`, and checks the result.
+Push, then open the **Actions** tab. Show the 4 jobs, then expand the deploy step.
 
-| Test | Checks that |
-|---|---|
-| `test_keeps_a_normal_trip` | Good trips survive |
-| `test_calculates_duration_hour_and_weekday` | The features are calculated correctly |
-| `test_removes_a_trip_under_one_minute` | 0-minute trips are removed |
-| `test_removes_a_trip_over_an_hour` | 90-minute trips are removed |
-| `test_removes_a_trip_with_no_distance` | 0-mile trips are removed |
-| `test_removes_a_trip_from_another_month` | Trips from the wrong month are removed |
-| `test_returns_the_columns_the_model_needs` | Every feature column is there |
+**🗣 Sollunga:** "Paarunga, `Space: BUILDING` nu varudhu. Hugging Face namma Docker image ah build pannudhu. Mudinjadhum `RUNNING` aagi, pudhu version sollum. Apram script ae oru prediction test pannum."
 
-**Walk through `tests/test_api.py`:** it trains a tiny model on made-up trips, so it needs no MLflow server and no data download.
+While it builds, open the Space page on Hugging Face and show the **Logs** tab.
 
-| Test | Checks that |
-|---|---|
-| `test_health` | `/health` answers |
-| `test_predict_returns_minutes` | `/predict` returns a positive number |
-| `test_api_fields_match_model_features` | The API fields match the model's features, in order |
-| `test_rejects_unknown_zone` | Zone `999` gets a `422` |
-| `test_rejects_missing_field` | A missing field gets a `422` |
-| `test_rejects_wrong_hour` | Hour `24` gets a `422` |
+## Part E: Live inference (25 min)
 
-**Point out:** tests should be fast and need nothing outside the repo. That's why they use made-up data.
+Open `/docs` in the browser first, then Postman. Use the tries table in README Part E. Ask before each **Send**.
 
-## Part 3: The model check (15 min)
+**🗣 Sollunga:** "Ippo idhu real API. Unga phone la irundhu kooda call pannalam. Oru mobile app, website, yaar venumnaalum indha URL ah use pannalam."
 
-```
-python src/download_data.py 2019-10 2019-11
-python src/check_model.py
-```
+Show the `422` errors.
 
-Expected: error 3.32, `PASSED`.
+**🗣 Sollunga:** "Thappana input ku model kitta poga koodaadhu. API ae reject pannum. Endha field thappu nu kooda sollum."
 
-**Explain:** `check_model.py` trains with our current code on October 2019 and tests on November 2019. If the error is above 3.6 minutes, it exits with code 1, and a non-zero exit code makes a CI job fail.
+If the first call is slow:
 
-**Why 3.6?** Our model scores about 3.3, so 3.6 allows some room before it fails. Measured on this data:
+**🗣 Sollunga:** "Free Space konja neram use aagala na thoongidum. Idhu cold start. Paid hardware la idhu varaadhu."
 
-| Change | Error | Result |
-|---|---|---|
-| Our current code | 3.32 | ✅ |
-| Train on 20,000 rows | 3.45 | ✅ |
-| Train on 2,000 rows | 3.73 | ❌ |
-| `max_depth` 5 | 3.77 | ❌ |
+## Part F: Ship a new version (15 min)
 
-**Point out:** after passing, it saves the model to `model/`. CI puts **exactly this checked model** in the Docker image.
+Change the API title to "v2", push, wait for green, then press **Send** in Postman again.
 
-## Part 4: Read the workflow (15 min)
+**🗣 Sollunga:** "Naama Hugging Face website ah touch kooda pannala. Push mattum dhaan. Check pass aachu, adhuve ship aachu. Idhu dhaan CD."
 
-Open `.github/workflows/ci.yml` and walk through it top to bottom.
+Then explain why a bad change can't go live, using the table in README Part F.
 
-| Part | Meaning |
-|---|---|
-| `on: push: branches: [main]` and `pull_request` | Run on pushes to `main` and on every PR |
-| `runs-on: ubuntu-latest` | Each job gets a fresh Linux machine |
-| `uses: actions/checkout@v7` | Copy the repo onto that machine |
-| `uses: actions/setup-python@v7` | Install Python, and cache packages for next time |
-| `run:` | Run a command, as in a terminal |
-| `needs: test` | Wait for `test` to pass first |
-| `upload-artifact` / `download-artifact` | Pass the checked model from one job to the next |
-
-**Ask:** "Why does each job need its own `checkout` and `setup-python`?"
-**Answer:** every job starts on a brand-new machine with nothing on it.
-
-**Ask:** "Why not build the Docker image first?"
-**Answer:** there's no point building an image for code that fails its tests, or a model that fails its check.
-
-## Part 5: Push and get green (15 min)
-
-Follow README Step 4. Then open the **Actions** tab together and click into the run. Show:
-- The three jobs and the arrows between them
-- The log for each step
-- The `model` artifact saved on the run page
-
-## Part 6: Break it on purpose (25 min)
-
-### Demo A: a code bug
-
-Change `between(1, 60)` to `between(0, 60)` in `src/common.py` and open a PR (README Step 6).
-
-| Job | Result |
-|---|---|
-| `test` | ❌ `test_removes_a_trip_under_one_minute` fails |
-| `model-check` | Skipped |
-| `docker` | Skipped |
-
-**Show:** click the failed job and read the error together. Students should learn to find the failing line in a CI log.
-
-### Demo B: a weak model
-
-Change `MAX_TRAIN_ROWS = 100_000` to `MAX_TRAIN_ROWS = 2_000` and open a PR (README Step 7). The story is a teammate trying to make training faster.
-
-| Job | Result |
-|---|---|
-| `test` | ✅ All 13 pass |
-| `model-check` | ❌ Error 3.73, above the 3.6 limit |
-| `docker` | Skipped |
-
-**This is the key lesson of the class:** the code is correct, so every test passes, but the model got worse. Normal software CI would let this through, and ML CI needs a model check too.
-
-Fix both PRs by reverting the change and pushing again, and show them turn green.
-
-## Part 7: Block bad merges (10 min)
-
-Set up a ruleset on `main` that requires `test`, `model-check` and `docker` to pass (README Step 8). Then open a red PR again and show that the **Merge** button is blocked.
-
-**Note:** this may not be enforced on private repos with a free plan, which is why students use public repos. Check it on your test repo before class.
+**🗣 Sollunga:** "Weak model push pannaalum, `model-check` fail aagum, `deploy` skip aagum. Live API pazhaya nalla version laye irukkum. Users ku mosamaana model pogave pogaadhu."
 
 ---
 
 ## Check understanding
 
-1. **What starts the workflow?** A push to `main`, or any pull request.
-2. **Why did demo B pass the tests but fail CI?** The code was correct, but the model was worse. Tests check code, and the model check checks the model.
-3. **What does `needs` do?** It makes a job wait for another job to pass.
-4. **Why do the API tests use a made-up model?** So they run fast without MLflow or data downloads.
-5. **How does a script make a CI job fail?** It exits with a non-zero code, such as `sys.exit(1)`.
-6. **Which model goes into the CI Docker image?** The exact model that passed `check_model.py`, passed between jobs as an artifact.
+| Question | 🗣 Answer |
+|---|---|
+| CI um CD um enna difference? | CI check pannum. CD, pass aana, automatic ah ship pannum |
+| Token ah yen code la podakoodadhu? | Yaar paathaalum unga account la upload pannalam. Secret la vechaa logs la kooda theriyaadhu |
+| Pull request la deploy aagumaa? | Illa. `main` ku push panna mattum |
+| Weak model push panna live API ku enna aagum? | Onnum aagaadhu. `deploy` skip, pazhaya version laye irukkum |
+| Upload aana odane "deployed" nu sollalaama? | Illa. Live URL pudhu version sollura varaikkum wait panni test pannanum |
+| Live la endha version odudhu nu eppadi theriyum? | `/health` illa `/predict` la `model_version` |
+| First request yen slow? | Free Space thoongidum, cold start |
 
 ## Likely student questions
 
-- **Is this model the champion from MLflow?** No. CI has no MLflow server, so it trains its own model to check the code. The image it builds is a test that the image works. Shipping the real champion stays as in Class 3.
-- **Does CI cost money?** GitHub Actions is free for public repos on standard machines. Private repos get a limited number of free minutes each month.
-- **Why train on one month only?** It keeps CI quick. The full training still happens with `train.py`.
-- **Why `pull_request` and not every push?** We still run on pushes to `main`. Checking PRs catches problems before they reach `main`.
+| Question | 🗣 Answer |
+|---|---|
+| Hugging Face free ah? | "Basic CPU Space free. Aana use aagala na thoongidum. Faster hardware ku kaasu." |
+| Indha URL ah yaar venumnaalum call pannalaama? | "Aamaa, public Space. Demo ku OK. Real company la login illa API key vekkanum." |
+| Indha model MLflow champion ah? | "Illa. CI train panna, check pass aana model. Real company la registry la irundhu champion ah eduthu deploy pannuvaanga. Adhu next step." |
+| AWS, Azure la deploy panna mudiyumaa? | "Mudiyum. Deploy job la Hugging Face ku badhila andha cloud ku upload pannanum. Concept same: check pass aana dhaan ship." |
 
 ## Homework
 
-1. Add a test that removes trips with a negative `trip_distance`.
-2. Add a CI status badge to the README.
-3. **Bonus:** add a scheduled workflow (`on: schedule`) that runs `monitor.py` every week.
+See README Part 11: a Postman collection, a new `/version` endpoint, sending sample trips to the live API, and reading the Space's free-tier limits.
 
-## Next class
-
-The course roadmap still includes data versioning (DVC) and continuous deployment, such as pushing the image to a registry automatically on `main`.
+**🗣 Sollunga:** "Homework la oru pudhu endpoint add panni push pannunga. Sila nimishathula unga change ulagam muzhukka live aagum. Adhu dhaan CD oda power."

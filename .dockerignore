@@ -11,3 +11,4 @@ reports/
 mlflow.db
 mlartifacts/
 mlruns/
+deploy/
