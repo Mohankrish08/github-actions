@@ -76,24 +76,34 @@ jobs:
         if: failure()
         run: docker logs api
 
-  # 4. Ship it to the live API on Hugging Face.
+  # 4. Ship it to the live API on Render.
   #    Only for pushes to main, and only if all three checks passed
   deploy:
     needs: docker
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     concurrency: deploy # one deploy at a time, never two at once
+    permissions:
+      contents: read
+      packages: write # lets this job push the image to GitHub's registry (ghcr.io)
     steps:
       - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
         with:
           name: model
           path: model/
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.10"
-      - run: pip install "huggingface_hub==2.4.0"
-      - run: python deploy/deploy_space.py
+      - name: Build the image and push it to GitHub's registry
         env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }} # secret: never written in the code
-          HF_SPACE: ${{ vars.HF_SPACE }} # variable, for example your-name/taxi-api
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} # made by GitHub for every run, nothing to set up
+        run: |
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/taxi-api"   # ,, = lowercase, registry names must be
+          VERSION=$(cat model/version.txt)
+          echo "$GH_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker build -t "$IMAGE:$VERSION" -t "$IMAGE:latest" \
+            --label "org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}" .
+          docker push --all-tags "$IMAGE"
+          echo "IMAGE=$IMAGE:$VERSION" >> "$GITHUB_ENV"
+      - run: python3 deploy/deploy_render.py
+        env:
+          RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }} # secret: anyone with it can deploy
+          RENDER_URL: ${{ vars.RENDER_URL }} # variable, like https://taxi-api-xxxx.onrender.com

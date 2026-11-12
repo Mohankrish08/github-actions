@@ -1,7 +1,6 @@
 FROM python:3.10-slim
 
-# Hugging Face Spaces runs the app as user 1000, so we do the same everywhere.
-# Then CI tests the image exactly the way the Space will run it
+# Run the app as a normal user, not root: safer on any server
 RUN useradd -m -u 1000 user
 
 WORKDIR /app
@@ -16,5 +15,6 @@ COPY --chown=user model ./model
 USER user
 ENV HOME=/home/user
 
+# Render tells the app which port to use in $PORT. Everywhere else: 8000
 EXPOSE 8000
-CMD ["uvicorn", "serve:app", "--app-dir", "src", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "exec uvicorn serve:app --app-dir src --host 0.0.0.0 --port ${PORT:-8000}"]
