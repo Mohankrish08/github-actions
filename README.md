@@ -139,7 +139,7 @@ Mudinjadhum: `docker rm -f api`
           IMAGE="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/taxi-api"
           VERSION=$(cat model/version.txt)
           echo "$GH_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-          docker build -t "$IMAGE:$VERSION" -t "$IMAGE:latest" --label "..." .
+          docker build --provenance=false --sbom=false -t "$IMAGE:$VERSION" -t "$IMAGE:latest" --label "..." .
           docker push --all-tags "$IMAGE"
           echo "IMAGE=$IMAGE:$VERSION" >> "$GITHUB_ENV"
       - run: python3 deploy/deploy_render.py
@@ -158,6 +158,7 @@ Mudinjadhum: `docker rm -f api`
 | `secrets.GITHUB_TOKEN` | GitHub ovvoru run kum automatic ah kudukkura token. Naama create panna thevai illa |
 | `${GITHUB_REPOSITORY_OWNER,,}` | Username ah small letters aakkum (`Mohankrish08` → `mohankrish08`). Image name la capital letters koodaadhu |
 | `-t "$IMAGE:$VERSION" -t "$IMAGE:latest"` | Orey image ku rendu tags: version name, matrum `latest` |
+| `--provenance=false --sbom=false` | Simple image mattum. Extra "attestation" records irundhaa GitHub registry `denied` nu reject pannum |
 | `docker push --all-tags` | Rendu tags um ghcr.io ku |
 | `GITHUB_ENV` | Image name ah adutha step ku anuppum |
 | `secrets.RENDER_DEPLOY_HOOK` | Render hook URL, secret la. Adhu theriyura yaar venumnaalum deploy pannalam, adhunaala secret |
@@ -341,7 +342,7 @@ Pudhu version la problem na, pazhaya green run ah thirumba deploy pannalam: **Ac
 | Error (deploy job la) | Karanam | Fix |
 |---|---|---|
 | `One-time setup is not finished` | Hook secret illa URL variable add pannala | Part D2 to D6 |
-| `denied` / `permission_denied` in docker push | Job ku packages permission illa | `ci.yml` la `permissions: packages: write` irukkaa paarunga |
+| `denied` in docker push | Job ku packages permission illa, illa build la attestation records | `permissions: packages: write` and `--provenance=false --sbom=false` irukkaa paarunga |
 | `Render refused the deploy (HTTP 404)` | Hook thappu, illa Render service image name vera | Hook ah thirumba copy pannunga. Service image `ghcr.io/<you>/taxi-api:latest` ah irukkanum |
 | `was not live after 15 minutes` | Render image pull panna mudiyala, illa app start aagala | Render service → **Events** / **Logs**. Image **public** ah irukkaa (D2) paarunga |
 | `deploy` job skip aagudhu | Pull request, illa `main` illaadha branch | Normal dhaan. `main` ku merge/push pannunga |
